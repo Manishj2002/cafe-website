@@ -1,4 +1,4 @@
-// src/pages/user/Login.jsx - Login with Email Verification Check
+// src/pages/user/Login.jsx - Login (No Email Verification)
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -6,7 +6,6 @@ import { useAuth } from '../../context/AuthContext';
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
-  const [emailNotVerified, setEmailNotVerified] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -18,7 +17,6 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setEmailNotVerified(false);
     setLoading(true);
 
     const result = await login(formData);
@@ -26,11 +24,9 @@ const Login = () => {
     if (result.success) {
       navigate('/');
     } else {
-      setError(result.message);
-      if (result.emailNotVerified) {
-        setEmailNotVerified(true);
-      }
+      setError(result.message || 'Login failed. Please check your credentials.');
     }
+    
     setLoading(false);
   };
 
@@ -49,16 +45,6 @@ const Login = () => {
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6">
             {error}
-            {emailNotVerified && (
-              <div className="mt-3">
-                <Link
-                  to="/resend-verification"
-                  className="text-red-800 font-semibold underline hover:text-red-900"
-                >
-                  Resend Verification Email
-                </Link>
-              </div>
-            )}
           </div>
         )}
 
@@ -120,7 +106,6 @@ const Login = () => {
           <p className="text-sm text-gray-700 mb-2 font-semibold">Demo Credentials:</p>
           <p className="text-xs text-gray-600">👤 User: user@example.com / User@123</p>
           <p className="text-xs text-gray-600">👨‍💼 Admin: admin@cafe.com / Admin@123</p>
-          <p className="text-xs text-red-600 mt-2">⚠️ Demo accounts are already verified</p>
         </div>
       </div>
     </div>

@@ -41,18 +41,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  isEmailVerified: {
-    type: Boolean,
-    default: false
-  },
-  emailVerificationToken: {
-    type: String,
-    select: false
-  },
-  emailVerificationExpire: {
-    type: Date,
-    select: false
-  },
+  // isEmailVerified: {
+  //   type: Boolean,
+  //   default: false
+  // },
+  // emailVerificationToken: {
+  //   type: String,
+  //   select: false
+  // },
+  // emailVerificationExpire: {
+  //   type: Date,
+  //   select: false
+  // },
   createdAt: {
     type: Date,
     default: Date.now
