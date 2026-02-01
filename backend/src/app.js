@@ -10,8 +10,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static uploads
-app.use("/uploads", express.static("uploads"));
+// ────────────────────────────────────────────────
+// Removed: No longer needed with Cloudinary
+// app.use("/uploads", express.static("uploads"));
+// ────────────────────────────────────────────────
+
+// Optional: keep this if you still have other static files (e.g. public folder)
+// but in most cases you can remove it too if nothing else uses static serving
+// app.use(express.static("public"));   // ← only if you have one
+
 app.use((req, res, next) => {
   req.io = req.app.get('socketio');
   next();
@@ -25,7 +32,6 @@ app.use("/api/orders", require("./routes/orderRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use('/api/public', require('./routes/publicRoutes'));
-// In server.js, add:
 
 // Health check
 app.get("/api/health", (req, res) => {
