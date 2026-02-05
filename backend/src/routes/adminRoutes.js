@@ -1,7 +1,7 @@
-// routes/adminRoutes.js - Admin Routes (Enhanced)
+// routes/adminRoutes.js - Admin Routes (Fixed)
 const express = require('express');
 const router = express.Router();
-const ContactMessage = require('../models/ContactMessage'); // ← add this if not already
+const ContactMessage = require('../models/ContactMessage');
 
 const {
   addMenuItem,
@@ -25,74 +25,49 @@ const {
   getContactMessages,
   updateMessageStatus,
   deleteContactMessage,
-  
 } = require('../controllers/adminController');
 
 const { protect, authorize } = require('../middleware/authMiddleware');
-const { createTransporter } = require('../utils/email'); // ← NEW IMPORT
+const { createTransporter } = require('../utils/email');
 
 // Apply middleware to all routes
 router.use(protect);
 router.use(authorize('admin'));
 
-// Dashboard
-// router.get('/dashboard', getDashboardStats);
-router.get("/dashboard/stats", protect,getDashboardStats);
-// Menu Management
+// ============= DASHBOARD =============
+router.get('/dashboard/stats', getDashboardStats);
+
+// ============= MENU MANAGEMENT =============
 router.post('/menu', addMenuItem);
 router.put('/menu/:id', updateMenuItem);
 router.delete('/menu/:id', deleteMenuItem);
 router.patch('/menu/:id/availability', toggleAvailability);
 
-// Category Management
+// ============= CATEGORY MANAGEMENT =============
 router.post('/categories', addCategory);
 router.put('/categories/:id', updateCategory);
 router.delete('/categories/:id', deleteCategory);
 
-// Order Management
+// ============= ORDER MANAGEMENT =============
 router.get('/orders', getAllOrders);
 router.put('/orders/:id/status', updateOrderStatus);
 
-// User Management
+// ============= USER MANAGEMENT =============
 router.get('/users', getAllUsers);
 router.patch('/users/:id/status', toggleUserStatus);
 
-// Offers Management
+// ============= OFFERS MANAGEMENT =============
 router.post('/offers', createOffer);
 router.get('/offers', getAllOffers);
 router.put('/offers/:id', updateOffer);
 router.delete('/offers/:id', deleteOffer);
 
-// Settings Management
+// ============= SETTINGS MANAGEMENT =============
 router.get('/settings', getSettings);
 router.put('/settings', updateSettings);
 
-// ────────────────────────────────────────────────
-// Contact Messages – inline handlers with email support
-// ────────────────────────────────────────────────
-
-router.get('/contact-messages', getContactMessages); // keep using controller if it works
-
-// Optional: if you want to override / replace the controller version:
-router.get('/contact-messages', async (req, res) => {
-  try {
-    const messages = await ContactMessage.find()
-      .sort({ createdAt: -1 })
-      .lean();
-
-    res.status(200).json({
-      success: true,
-      count: messages.length,
-      data: messages
-    });
-  } catch (error) {
-    console.error('GET contact-messages error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Server error'
-    });
-  }
-});
+// ============= CONTACT MESSAGES =============
+router.get('/contact-messages', getContactMessages);
 
 router.patch('/contact-messages/:id', async (req, res) => {
   try {
@@ -123,7 +98,6 @@ router.patch('/contact-messages/:id', async (req, res) => {
         transporter = createTransporter();
       } catch (emailConfigError) {
         console.error('Email transporter creation failed:', emailConfigError);
-        // Still continue – don't fail the whole request if email fails
       }
 
       if (transporter) {
@@ -164,7 +138,6 @@ Email: info@cafedelight.com</p>
           console.log(`Reply email sent to ${message.email}`);
         } catch (emailSendError) {
           console.error('Failed to send reply email:', emailSendError);
-          // Optional: you could add a field like emailSent: false in response
         }
       }
     }

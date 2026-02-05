@@ -15,8 +15,8 @@ const { protect } = require('../middleware/authMiddleware');
 // Public routes
 router.post('/register', register);
 router.post('/login', login);
-router.get('/verify-email/:token', verifyEmail);
-router.post('/resend-verification', resendVerificationEmail);
+// router.get('/verify-email/:token', verifyEmail);
+// router.post('/resend-verification', resendVerificationEmail);
 
 // Private routes
 router.get('/me', protect, getMe);

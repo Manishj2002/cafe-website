@@ -1,9 +1,9 @@
-// src/pages/admin/ManageMenu.jsx - Menu Management with Image Upload
+// src/pages/admin/ManageMenu.jsx - Menu Management with Image Upload (Fixed)
 import { useState, useEffect } from 'react';
 import menuService from '../../services/menuApi';
 import categoryService from '../../services/categoryService';
 import adminService from '../../services/adminService';
-import axios from 'axios';
+import API from '../../services/api'; // ✅ Use configured API instance instead of axios
 import Loader from '../../components/common/Loader';
 
 const ManageMenu = () => {
@@ -14,6 +14,7 @@ const ManageMenu = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [uploading, setUploading] = useState(false); // ✅ Track upload state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -53,7 +54,21 @@ const ManageMenu = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('❌ Image size should be less than 5MB');
+        return;
+      }
+
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        alert('❌ Please upload a valid image file (JPEG, PNG, GIF, or WebP)');
+        return;
+      }
+
       setImageFile(file);
+      
       // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -65,25 +80,54 @@ const ManageMenu = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     try {
-      let imageUrl = '';
+      let imageUrl = editingItem?.image || ''; // ✅ Keep existing image if editing
 
-      // Upload image if selected
+      // Upload image if a new file was selected
       if (imageFile) {
+        setUploading(true);
         const formDataImg = new FormData();
         formDataImg.append('image', imageFile);
 
-        const uploadRes = await axios.post('/api/upload', formDataImg, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        imageUrl = uploadRes.data.filePath;
+        console.log('📤 Uploading image...');
+
+        try {
+          // ✅ Use configured API instance with /upload endpoint
+          const uploadRes = await API.post('/upload', formDataImg, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+
+          // ✅ Get Cloudinary URL from response
+          imageUrl = uploadRes.data.imageUrl;
+          console.log('✅ Image uploaded successfully:', imageUrl);
+        } catch (uploadError) {
+          console.error('❌ Upload error:', uploadError);
+          alert('❌ Failed to upload image: ' + (uploadError.response?.data?.message || uploadError.message));
+          setUploading(false);
+          return; // Stop submission if upload fails
+        }
+        
+        setUploading(false);
       }
 
-      const submitData = { ...formData };
+      // Prepare submission data
+      const submitData = { 
+        ...formData,
+        price: Number(formData.price),
+        stock: Number(formData.stock),
+        spicyLevel: Number(formData.spicyLevel),
+        preparationTime: Number(formData.preparationTime)
+      };
+
+      // ✅ Only add image if we have one
       if (imageUrl) {
         submitData.image = imageUrl;
       }
 
+      console.log('📝 Submitting menu item data:', submitData);
+
+      // Create or update menu item
       if (editingItem) {
         await adminService.updateMenuItem(editingItem._id, submitData);
         alert('✅ Menu item updated successfully!');
@@ -91,11 +135,15 @@ const ManageMenu = () => {
         await adminService.addMenuItem(submitData);
         alert('✅ Menu item added successfully!');
       }
+
       setShowModal(false);
       resetForm();
       loadData();
     } catch (error) {
-      alert('❌ ' + (error.response?.data?.message || 'Operation failed'));
+      console.error('❌ Submit error:', error);
+      alert('❌ ' + (error.response?.data?.message || error.message || 'Operation failed'));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -112,8 +160,10 @@ const ManageMenu = () => {
       isFeatured: item.isFeatured,
       preparationTime: item.preparationTime || 15
     });
+    
+    // ✅ Set preview to Cloudinary URL directly (no localhost prefix needed)
     if (item.image) {
-      setImagePreview(`http://localhost:5000/${item.image}`);
+      setImagePreview(item.image);
     }
     setShowModal(true);
   };
@@ -125,6 +175,7 @@ const ManageMenu = () => {
       alert('✅ Item deleted successfully!');
       loadData();
     } catch (error) {
+      console.error('Delete error:', error);
       alert('❌ ' + (error.response?.data?.message || 'Delete failed'));
     }
   };
@@ -134,6 +185,7 @@ const ManageMenu = () => {
       await adminService.toggleAvailability(id);
       loadData();
     } catch (error) {
+      console.error('Toggle availability error:', error);
       alert('❌ ' + (error.response?.data?.message || 'Update failed'));
     }
   };
@@ -153,6 +205,7 @@ const ManageMenu = () => {
     setEditingItem(null);
     setImageFile(null);
     setImagePreview(null);
+    setUploading(false);
   };
 
   if (loading) return <Loader fullPage />;
@@ -176,52 +229,68 @@ const ManageMenu = () => {
 
         {/* Menu Items Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {menuItems.map((item) => (
-            <div key={item._id} className="bg-white rounded-xl shadow-md overflow-hidden">
-              <div className="h-40 bg-gradient-to-br from-accent to-primary flex items-center justify-center text-6xl">
-                {item.image ? (
-                  <img src={`http://localhost:5000/${item.image}`} alt={item.name} className="w-full h-full object-cover" />
-                ) : (
-                  item.isVeg ? '🥗' : '🍖'
-                )}
-              </div>
-              <div className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-lg line-clamp-1">{item.name}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    item.isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {item.isAvailable ? 'Active' : 'Hidden'}
-                  </span>
-                </div>
-                <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.description}</p>
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-xl font-bold text-primary">₹{item.price}</span>
-                  <span className="text-sm text-gray-500">Stock: {item.stock}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => handleEdit(item)}
-                    className="bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition text-sm"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => toggleAvailability(item._id)}
-                    className="bg-yellow-500 text-white py-2 rounded-lg hover:bg-yellow-600 transition text-sm"
-                  >
-                    {item.isAvailable ? 'Hide' : 'Show'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item._id)}
-                    className="bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition text-sm"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
+          {menuItems.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <p className="text-gray-500 text-lg">No menu items found. Add your first item!</p>
             </div>
-          ))}
+          ) : (
+            menuItems.map((item) => (
+              <div key={item._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition">
+                <div className="h-40 bg-gradient-to-br from-accent to-primary flex items-center justify-center text-6xl overflow-hidden">
+                  {item.image ? (
+                    // ✅ Display Cloudinary image directly
+                    <img 
+                      src={item.image} 
+                      alt={item.name} 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        // Fallback if image fails to load
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = item.isVeg ? '🥗' : '🍖';
+                      }}
+                    />
+                  ) : (
+                    item.isVeg ? '🥗' : '🍖'
+                  )}
+                </div>
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-bold text-lg line-clamp-1">{item.name}</h3>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      item.isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {item.isAvailable ? 'Active' : 'Hidden'}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.description}</p>
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-xl font-bold text-primary">₹{item.price}</span>
+                    <span className="text-sm text-gray-500">Stock: {item.stock}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => handleEdit(item)}
+                      className="bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition text-sm font-medium"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => toggleAvailability(item._id)}
+                      className="bg-yellow-500 text-white py-2 rounded-lg hover:bg-yellow-600 transition text-sm font-medium"
+                    >
+                      {item.isAvailable ? 'Hide' : 'Show'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item._id)}
+                      className="bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition text-sm font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Add/Edit Modal */}
@@ -229,22 +298,49 @@ const ManageMenu = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 my-8">
               <h2 className="text-2xl font-bold mb-6">
-                {editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}
+                {editingItem ? '✏️ Edit Menu Item' : '➕ Add New Menu Item'}
               </h2>
               
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Image Upload */}
                 <div>
-                  <label className="block text-gray-700 font-medium mb-2">Product Image</label>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Product Image
+                    <span className="text-sm text-gray-500 font-normal ml-2">(Max 5MB - JPEG, PNG, GIF, WebP)</span>
+                  </label>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handleImageChange}
                     className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    disabled={uploading}
                   />
                   {imagePreview && (
-                    <div className="mt-4">
-                      <img src={imagePreview} alt="Preview" className="w-full h-48 object-cover rounded-lg" />
+                    <div className="mt-4 relative">
+                      <img 
+                        src={imagePreview} 
+                        alt="Preview" 
+                        className="w-full h-48 object-cover rounded-lg shadow-md" 
+                      />
+                      {!uploading && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageFile(null);
+                            setImagePreview(null);
+                          }}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600 transition"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {/* ✅ Upload progress indicator */}
+                  {uploading && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                      <p className="text-primary font-medium">Uploading image to cloud...</p>
                     </div>
                   )}
                 </div>
@@ -258,7 +354,9 @@ const ManageMenu = () => {
                       value={formData.name}
                       onChange={handleChange}
                       required
+                      disabled={uploading}
                       className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="e.g., Butter Chicken"
                     />
                   </div>
                   <div>
@@ -268,6 +366,7 @@ const ManageMenu = () => {
                       value={formData.category}
                       onChange={handleChange}
                       required
+                      disabled={uploading}
                       className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     >
                       <option value="">Select Category</option>
@@ -285,8 +384,10 @@ const ManageMenu = () => {
                     value={formData.description}
                     onChange={handleChange}
                     required
+                    disabled={uploading}
                     rows="3"
                     className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Describe the dish..."
                   ></textarea>
                 </div>
 
@@ -299,8 +400,11 @@ const ManageMenu = () => {
                       value={formData.price}
                       onChange={handleChange}
                       required
+                      disabled={uploading}
                       min="0"
+                      step="0.01"
                       className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="0.00"
                     />
                   </div>
                   <div>
@@ -311,8 +415,10 @@ const ManageMenu = () => {
                       value={formData.stock}
                       onChange={handleChange}
                       required
+                      disabled={uploading}
                       min="0"
                       className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="0"
                     />
                   </div>
                   <div>
@@ -322,19 +428,27 @@ const ManageMenu = () => {
                       name="preparationTime"
                       value={formData.preparationTime}
                       onChange={handleChange}
+                      disabled={uploading}
                       min="0"
                       className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="15"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-gray-700 font-medium mb-2">Spicy Level (0-3)</label>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Spicy Level (0-3)
+                    <span className="text-sm text-gray-500 font-normal ml-2">
+                      0 = Mild, 3 = Very Spicy
+                    </span>
+                  </label>
                   <input
                     type="number"
                     name="spicyLevel"
                     value={formData.spicyLevel}
                     onChange={handleChange}
+                    disabled={uploading}
                     min="0"
                     max="3"
                     className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
@@ -342,34 +456,39 @@ const ManageMenu = () => {
                 </div>
 
                 <div className="flex gap-6">
-                  <label className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       name="isVeg"
                       checked={formData.isVeg}
                       onChange={handleChange}
-                      className="w-5 h-5"
+                      disabled={uploading}
+                      className="w-5 h-5 cursor-pointer"
                     />
-                    <span className="text-gray-700 font-medium">Vegetarian</span>
+                    <span className="text-gray-700 font-medium">🥗 Vegetarian</span>
                   </label>
-                  <label className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       name="isFeatured"
                       checked={formData.isFeatured}
                       onChange={handleChange}
-                      className="w-5 h-5"
+                      disabled={uploading}
+                      className="w-5 h-5 cursor-pointer"
                     />
-                    <span className="text-gray-700 font-medium">Featured</span>
+                    <span className="text-gray-700 font-medium">⭐ Featured</span>
                   </label>
                 </div>
 
-                <div className="flex gap-4 pt-4">
+                <div className="flex gap-4 pt-4 border-t">
                   <button
                     type="submit"
-                    className="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-opacity-90 transition"
+                    disabled={uploading}
+                    className={`flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-opacity-90 transition ${
+                      uploading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   >
-                    {editingItem ? 'Update Item' : 'Add Item'}
+                    {uploading ? '⏳ Uploading...' : editingItem ? '✅ Update Item' : '✅ Add Item'}
                   </button>
                   <button
                     type="button"
@@ -377,7 +496,10 @@ const ManageMenu = () => {
                       setShowModal(false);
                       resetForm();
                     }}
-                    className="flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-400 transition"
+                    disabled={uploading}
+                    className={`flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-400 transition ${
+                      uploading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   >
                     Cancel
                   </button>
